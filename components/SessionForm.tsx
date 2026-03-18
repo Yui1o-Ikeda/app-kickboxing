@@ -36,7 +36,7 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
   const [breakdown, setBreakdown] = useState<RoundBreakdown[]>(DEFAULT_BREAKDOWN)
   const [intensity, setIntensity] = useState<1 | 2 | 3 | 4 | 5>(3)
   const [comment, setComment] = useState('')
-  const [trainerSelect, setTrainerSelect] = useState('')  // プルダウン選択値
+  const [selectedTrainers, setSelectedTrainers] = useState<string[]>([])  // チェック済みトレーナー
   const [trainerCustom, setTrainerCustom] = useState('')  // その他テキスト
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
@@ -50,18 +50,31 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
           setBreakdown(s.roundBreakdown.length > 0 ? s.roundBreakdown : DEFAULT_BREAKDOWN)
           setIntensity(s.intensity)
           setComment(s.comment)
-          if (PRESET_TRAINERS.includes(s.trainerName)) {
-            setTrainerSelect(s.trainerName)
-          } else if (s.trainerName) {
-            setTrainerSelect('その他')
-            setTrainerCustom(s.trainerName)
+          if (s.trainerName) {
+            const names = s.trainerName.split('・').filter(Boolean)
+            const presets = names.filter(n => PRESET_TRAINERS.includes(n))
+            const custom = names.find(n => !PRESET_TRAINERS.includes(n))
+            setSelectedTrainers([...presets, ...(custom ? ['__other__'] : [])])
+            setTrainerCustom(custom ?? '')
           }
         }
       })
     }
   }, [sessionId])
 
-  const trainerName = trainerSelect === 'その他' ? trainerCustom : trainerSelect
+  const hasCustom = selectedTrainers.includes('__other__')
+  const trainerName = [
+    ...selectedTrainers.filter(t => t !== '__other__'),
+    ...(hasCustom && trainerCustom.trim() ? [trainerCustom.trim()] : []),
+  ].join('・')
+
+  const toggleTrainer = (name: string) => {
+    setSelectedTrainers(prev => {
+      if (prev.includes(name)) return prev.filter(t => t !== name)
+      if (prev.filter(t => t !== '__other__').length >= 4 && name !== '__other__') return prev
+      return [...prev, name]
+    })
+  }
 
   const handleBreakdownChange = (idx: number, field: 'type' | 'count', value: string | number) => {
     setBreakdown(prev => prev.map((b, i) =>
@@ -304,34 +317,87 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
 
         {/* トレーナー */}
         <div className="bg-white rounded-2xl px-5 py-4 shadow-sm">
-          <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#8E8E93' }}>
-            トレーナー
-          </label>
-          <select
-            value={trainerSelect}
-            onChange={e => {
-              setTrainerSelect(e.target.value)
-              if (e.target.value !== 'その他') setTrainerCustom('')
-            }}
-            className="w-full mt-2 text-base font-medium rounded-xl px-3 py-3 outline-none appearance-none"
-            style={{ backgroundColor: '#F8F4EF', color: trainerSelect ? '#1C1C1E' : '#8E8E93' }}
-          >
-            <option value="">トレーナーを選択</option>
-            {PRESET_TRAINERS.map(name => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-            <option value="その他">その他</option>
-          </select>
-          {trainerSelect === 'その他' && (
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#8E8E93' }}>
+              トレーナー
+            </label>
+            <span className="text-xs" style={{ color: '#8E8E93' }}>
+              最大4名
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {PRESET_TRAINERS.map(name => {
+              const checked = selectedTrainers.includes(name)
+              const disabled = !checked && selectedTrainers.filter(t => t !== '__other__').length >= 4
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => toggleTrainer(name)}
+                  disabled={disabled}
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all"
+                  style={{
+                    backgroundColor: checked ? '#FFF0EB' : '#F8F4EF',
+                    opacity: disabled ? 0.4 : 1,
+                    border: `1.5px solid ${checked ? '#FF6B35' : 'transparent'}`,
+                  }}
+                >
+                  <span
+                    className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: checked ? '#FF6B35' : 'white', border: `1.5px solid ${checked ? '#FF6B35' : '#D1D1D6'}` }}
+                  >
+                    {checked && (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className="text-sm font-medium" style={{ color: checked ? '#FF6B35' : '#1C1C1E' }}>
+                    {name}
+                  </span>
+                </button>
+              )
+            })}
+            {/* その他 */}
+            <button
+              type="button"
+              onClick={() => toggleTrainer('__other__')}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all"
+              style={{
+                backgroundColor: hasCustom ? '#FFF0EB' : '#F8F4EF',
+                border: `1.5px solid ${hasCustom ? '#FF6B35' : 'transparent'}`,
+              }}
+            >
+              <span
+                className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0"
+                style={{ backgroundColor: hasCustom ? '#FF6B35' : 'white', border: `1.5px solid ${hasCustom ? '#FF6B35' : '#D1D1D6'}` }}
+              >
+                {hasCustom && (
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </span>
+              <span className="text-sm font-medium" style={{ color: hasCustom ? '#FF6B35' : '#1C1C1E' }}>
+                その他
+              </span>
+            </button>
+          </div>
+          {hasCustom && (
             <input
               type="text"
               value={trainerCustom}
               onChange={e => setTrainerCustom(e.target.value)}
               placeholder="トレーナー名を入力"
-              className="w-full mt-3 text-base outline-none border-b pb-1"
+              className="w-full mt-3 text-sm outline-none border-b pb-1"
               style={{ color: '#1C1C1E', borderColor: '#EBEBF0' }}
               autoFocus
             />
+          )}
+          {selectedTrainers.length > 0 && (
+            <p className="text-xs mt-2" style={{ color: '#FF6B35' }}>
+              {trainerName || '（名前を入力してください）'}
+            </p>
           )}
         </div>
 
