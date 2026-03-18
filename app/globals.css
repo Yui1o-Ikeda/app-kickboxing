@@ -1,26 +1,48 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-primary: #F8F4EF;
+  --bg-card: #FFFFFF;
+  --color-primary: #FF6B35;
+  --color-primary-dark: #E85520;
+  --color-dark: #1C1C1E;
+  --color-gray: #8E8E93;
+  --color-light-gray: #E5E5EA;
+  --color-border: #D1D1D6;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-sand: #F8F4EF;
+  --color-primary: #FF6B35;
+  --color-primary-dark: #E85520;
+  --color-ink: #1C1C1E;
+  --color-muted: #8E8E93;
+  --color-border: #D1D1D6;
+  --color-card: #FFFFFF;
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-primary);
+  color: var(--color-dark);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  min-height: 100dvh;
+}
+
+/* スクロールバー非表示 */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe area対応 */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
 }
