@@ -116,7 +116,8 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
       await saveSession(session)
       router.back()
     } catch (e) {
-      setError(e instanceof Error ? e.message : '保存に失敗しました')
+      const msg = (e as { message?: string })?.message ?? JSON.stringify(e)
+      setError(msg)
     } finally {
       setSaving(false)
     }
