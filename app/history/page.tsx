@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
@@ -25,8 +27,9 @@ export default function HistoryPage() {
   const [filter, setFilter] = useState<'all' | 'actual' | 'planned'>('all')
 
   useEffect(() => {
-    const all = getSessions().sort((a, b) => b.date.localeCompare(a.date))
-    setSessions(all)
+    getSessions().then(all => {
+      setSessions(all.sort((a, b) => b.date.localeCompare(a.date)))
+    })
   }, [])
 
   const filtered = filter === 'all' ? sessions : sessions.filter(s => s.status === filter)

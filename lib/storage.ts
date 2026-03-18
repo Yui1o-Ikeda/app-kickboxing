@@ -1,110 +1,109 @@
-'use client'
-
-import { Session, Trainer, AppSettings, MonthlyStats } from './types'
+import { getSupabase } from './supabase'
+import { Session, AppSettings, RoundBreakdown } from './types'
 import { DEFAULT_SETTINGS } from './constants'
 
-const KEYS = {
-  sessions: 'kb_sessions',
-  trainers: 'kb_trainers',
-  settings: 'kb_settings',
+// ── Sessions ──────────────────────────────────────────────
+
+export async function getSessions(): Promise<Session[]> {
+  const { data, error } = await getSupabase()
+    .from('sessions')
+    .select('*')
+    .order('date', { ascending: false })
+  if (error) throw error
+  return (data ?? []).map(dbToSession)
 }
 
-// Sessions
-export function getSessions(): Session[] {
-  if (typeof window === 'undefined') return []
-  const raw = localStorage.getItem(KEYS.sessions)
-  return raw ? JSON.parse(raw) : []
+export async function getSessionById(id: string): Promise<Session | null> {
+  const { data, error } = await getSupabase()
+    .from('sessions')
+    .select('*')
+    .eq('id', id)
+    .single()
+  if (error) return null
+  return data ? dbToSession(data) : null
 }
 
-export function saveSession(session: Session): void {
-  const sessions = getSessions()
-  const idx = sessions.findIndex(s => s.id === session.id)
-  if (idx >= 0) {
-    sessions[idx] = session
-  } else {
-    sessions.push(session)
-  }
-  localStorage.setItem(KEYS.sessions, JSON.stringify(sessions))
+export async function saveSession(session: Session): Promise<void> {
+  const { error } = await getSupabase()
+    .from('sessions')
+    .upsert(sessionToDb(session))
+  if (error) throw error
 }
 
-export function deleteSession(id: string): void {
-  const sessions = getSessions().filter(s => s.id !== id)
-  localStorage.setItem(KEYS.sessions, JSON.stringify(sessions))
+export async function deleteSession(id: string): Promise<void> {
+  const { error } = await getSupabase()
+    .from('sessions')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
 }
 
-export function getSessionById(id: string): Session | null {
-  return getSessions().find(s => s.id === id) ?? null
-}
+// ── Settings ──────────────────────────────────────────────
 
-export function getSessionsByMonth(year: number, month: number): Session[] {
-  const prefix = `${year}-${String(month).padStart(2, '0')}`
-  return getSessions().filter(s => s.date.startsWith(prefix))
-}
-
-// Trainers
-export function getTrainers(): Trainer[] {
-  if (typeof window === 'undefined') return []
-  const raw = localStorage.getItem(KEYS.trainers)
-  return raw ? JSON.parse(raw) : []
-}
-
-export function saveTrainer(trainer: Trainer): void {
-  const trainers = getTrainers()
-  const idx = trainers.findIndex(t => t.id === trainer.id)
-  if (idx >= 0) {
-    trainers[idx] = trainer
-  } else {
-    trainers.push(trainer)
-  }
-  localStorage.setItem(KEYS.trainers, JSON.stringify(trainers))
-}
-
-export function deleteTrainer(id: string): void {
-  const trainers = getTrainers().filter(t => t.id !== id)
-  localStorage.setItem(KEYS.trainers, JSON.stringify(trainers))
-}
-
-// Settings
-export function getSettings(): AppSettings {
-  if (typeof window === 'undefined') return DEFAULT_SETTINGS
-  const raw = localStorage.getItem(KEYS.settings)
-  return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS
-}
-
-export function saveSettings(settings: AppSettings): void {
-  localStorage.setItem(KEYS.settings, JSON.stringify(settings))
-}
-
-// Stats
-export function calcMonthlyStats(year: number, month: number): MonthlyStats {
-  const sessions = getSessionsByMonth(year, month)
-  const settings = getSettings()
-
-  const actual = sessions.filter(s => s.status === 'actual')
-  const planned = sessions.filter(s => s.status === 'planned')
-
-  const totalRounds = actual.reduce((sum, s) => sum + s.totalRounds, 0)
-  const totalCost = settings.monthlyFee + actual.length * settings.transportCost
-
-  const intensities = actual.filter(s => s.intensity).map(s => s.intensity)
-  const avgIntensity = intensities.length > 0
-    ? intensities.reduce((a, b) => a + b, 0) / intensities.length
-    : null
-
+export async function getSettings(): Promise<AppSettings> {
+  const { data, error } = await getSupabase()
+    .from('app_settings')
+    .select('*')
+    .eq('id', 1)
+    .single()
+  if (error || !data) return DEFAULT_SETTINGS
   return {
-    year,
-    month,
-    actualSessions: actual.length,
-    plannedSessions: planned.length,
-    totalRounds,
-    totalCost,
-    costPerSession: actual.length > 0 ? Math.round(totalCost / actual.length) : null,
-    costPerRound: totalRounds > 0 ? Math.round(totalCost / totalRounds) : null,
-    avgIntensity,
+    monthlyFee: data.monthly_fee,
+    transportCost: data.transport_cost,
+    targetSessions: data.target_sessions,
+    targetRounds: data.target_rounds,
   }
 }
 
-// Utilities
+export async function saveSettings(settings: AppSettings): Promise<void> {
+  const { error } = await getSupabase()
+    .from('app_settings')
+    .upsert({
+      id: 1,
+      monthly_fee: settings.monthlyFee,
+      transport_cost: settings.transportCost,
+      target_sessions: settings.targetSessions,
+      target_rounds: settings.targetRounds,
+    })
+  if (error) throw error
+}
+
+// ── DB mapping ────────────────────────────────────────────
+
+function dbToSession(row: Record<string, unknown>): Session {
+  return {
+    id: row.id as string,
+    date: row.date as string,
+    status: row.status as 'planned' | 'actual',
+    totalRounds: row.total_rounds as number,
+    roundBreakdown: (row.round_breakdown as RoundBreakdown[]) ?? [],
+    intensity: ((row.intensity as number) ?? 3) as 1 | 2 | 3 | 4 | 5,
+    comment: (row.comment as string) ?? '',
+    trainerId: (row.trainer_id as string) ?? '',
+    trainerName: (row.trainer_name as string) ?? '',
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  }
+}
+
+function sessionToDb(s: Session) {
+  return {
+    id: s.id,
+    date: s.date,
+    status: s.status,
+    total_rounds: s.totalRounds,
+    round_breakdown: s.roundBreakdown,
+    intensity: s.intensity,
+    comment: s.comment,
+    trainer_id: s.trainerId,
+    trainer_name: s.trainerName,
+    created_at: s.createdAt,
+    updated_at: new Date().toISOString(),
+  }
+}
+
+// ── Utilities ─────────────────────────────────────────────
+
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
 }

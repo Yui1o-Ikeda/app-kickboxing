@@ -1,11 +1,14 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Calendar from '@/components/Calendar'
 import ROIDashboard from '@/components/ROIDashboard'
 import BottomNav from '@/components/BottomNav'
-import { getSessions, calcMonthlyStats, getSettings } from '@/lib/storage'
+import { getSessions, getSettings } from '@/lib/storage'
+import { computeMonthlyStats } from '@/lib/stats'
 import { Session, MonthlyStats, AppSettings } from '@/lib/types'
 
 export default function HomePage() {
@@ -17,29 +20,31 @@ export default function HomePage() {
   const [stats, setStats] = useState<MonthlyStats | null>(null)
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [tab, setTab] = useState<'calendar' | 'roi'>('calendar')
+  const [loading, setLoading] = useState(true)
 
-  const load = useCallback(() => {
-    const all = getSessions()
-    const prefix = `${year}-${String(month).padStart(2, '0')}`
-    setSessions(all.filter(s => s.date.startsWith(prefix)))
-    setStats(calcMonthlyStats(year, month))
-    setSettings(getSettings())
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [all, appSettings] = await Promise.all([getSessions(), getSettings()])
+      const prefix = `${year}-${String(month).padStart(2, '0')}`
+      setSessions(all.filter(s => s.date.startsWith(prefix)))
+      setStats(computeMonthlyStats(all, appSettings, year, month))
+      setSettings(appSettings)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
   }, [year, month])
 
   useEffect(() => {
     load()
   }, [load])
 
-  const handleMonthChange = (y: number, m: number) => {
-    setYear(y)
-    setMonth(m)
-  }
-
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1
 
   return (
     <div className="min-h-dvh" style={{ backgroundColor: '#F8F4EF' }}>
-      {/* ヘッダー */}
       <header
         className="sticky top-0 z-40 flex items-center justify-between px-5"
         style={{
@@ -53,14 +58,12 @@ export default function HomePage() {
             KICK<span style={{ color: '#FF6B35' }}>LOG</span>
           </h1>
           {isCurrentMonth && (
-            <p className="text-xs" style={{ color: '#8E8E93' }}>
-              今月の記録
-            </p>
+            <p className="text-xs" style={{ color: '#8E8E93' }}>今月の記録</p>
           )}
         </div>
         <button
           onClick={() => router.push('/sessions/new')}
-          className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm text-white active:opacity-80 transition-opacity"
+          className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm text-white active:opacity-80"
           style={{ backgroundColor: '#FF6B35' }}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -70,46 +73,38 @@ export default function HomePage() {
         </button>
       </header>
 
-      {/* タブ切り替え */}
       <div className="px-5 mb-4">
         <div className="flex rounded-xl p-1" style={{ backgroundColor: '#EBEBF0' }}>
-          <button
-            onClick={() => setTab('calendar')}
-            className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
-            style={{
-              backgroundColor: tab === 'calendar' ? 'white' : 'transparent',
-              color: tab === 'calendar' ? '#1C1C1E' : '#8E8E93',
-              boxShadow: tab === 'calendar' ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
-            }}
-          >
-            カレンダー
-          </button>
-          <button
-            onClick={() => setTab('roi')}
-            className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
-            style={{
-              backgroundColor: tab === 'roi' ? 'white' : 'transparent',
-              color: tab === 'roi' ? '#1C1C1E' : '#8E8E93',
-              boxShadow: tab === 'roi' ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
-            }}
-          >
-            ROI
-          </button>
+          {(['calendar', 'roi'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
+              style={{
+                backgroundColor: tab === t ? 'white' : 'transparent',
+                color: tab === t ? '#1C1C1E' : '#8E8E93',
+                boxShadow: tab === t ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+              }}
+            >
+              {t === 'calendar' ? 'カレンダー' : 'ROI'}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* コンテンツ */}
       <main className="px-5 pb-28 flex flex-col gap-4">
-        {tab === 'calendar' ? (
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="w-8 h-8 rounded-full border-2 border-orange-200 border-t-orange-500 animate-spin" />
+          </div>
+        ) : tab === 'calendar' ? (
           <>
             <Calendar
               year={year}
               month={month}
               sessions={sessions}
-              onMonthChange={handleMonthChange}
+              onMonthChange={(y, m) => { setYear(y); setMonth(m) }}
             />
-
-            {/* 今月の実績 */}
             {sessions.filter(s => s.status === 'actual').length > 0 && (
               <div>
                 <h3 className="text-sm font-semibold mb-2 px-1" style={{ color: '#8E8E93' }}>
@@ -129,8 +124,6 @@ export default function HomePage() {
                 </div>
               </div>
             )}
-
-            {/* 空状態 */}
             {sessions.length === 0 && (
               <div className="flex flex-col items-center gap-3 py-12">
                 <span className="text-5xl">🥊</span>
@@ -148,9 +141,7 @@ export default function HomePage() {
             )}
           </>
         ) : (
-          stats && settings && (
-            <ROIDashboard stats={stats} settings={settings} />
-          )
+          stats && settings && <ROIDashboard stats={stats} settings={settings} />
         )}
       </main>
 
@@ -163,27 +154,19 @@ function SessionSummaryCard({ session, onClick }: { session: Session; onClick: (
   const date = new Date(session.date + 'T00:00:00')
   const dateLabel = `${date.getMonth() + 1}/${date.getDate()}(${['日','月','火','水','木','金','土'][date.getDay()]})`
   const INTENSITY_EMOJI = ['', '😌', '💪', '🏋️', '🔥', '💀']
-
   return (
     <button
       onClick={onClick}
-      className="bg-white rounded-2xl px-4 py-3 flex items-center justify-between active:bg-gray-50 transition-colors text-left w-full shadow-sm"
+      className="bg-white rounded-2xl px-4 py-3 flex items-center justify-between active:bg-gray-50 text-left w-full shadow-sm"
     >
       <div className="flex flex-col gap-0.5">
-        <span className="font-semibold text-sm" style={{ color: '#1C1C1E' }}>
-          {dateLabel}
-        </span>
+        <span className="font-semibold text-sm" style={{ color: '#1C1C1E' }}>{dateLabel}</span>
         <span className="text-xs" style={{ color: '#8E8E93' }}>
-          {session.totalRounds}R
-          {session.trainerName ? ` · ${session.trainerName}` : ''}
+          {session.totalRounds}R{session.trainerName ? ` · ${session.trainerName}` : ''}
         </span>
       </div>
       <div className="flex items-center gap-3">
-        {session.intensity && (
-          <span className="text-xl">
-            {INTENSITY_EMOJI[session.intensity]}
-          </span>
-        )}
+        {session.intensity && <span className="text-xl">{INTENSITY_EMOJI[session.intensity]}</span>}
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M6 4L10 8L6 12" stroke="#D1D1D6" strokeWidth="2" strokeLinecap="round" />
         </svg>

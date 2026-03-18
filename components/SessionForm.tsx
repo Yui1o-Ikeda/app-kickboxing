@@ -42,21 +42,22 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
 
   useEffect(() => {
     if (sessionId) {
-      const s = getSessionById(sessionId)
-      if (s) {
-        setStatus(s.status)
-        setDate(s.date)
-        setTotalRounds(s.totalRounds)
-        setBreakdown(s.roundBreakdown.length > 0 ? s.roundBreakdown : DEFAULT_BREAKDOWN)
-        setIntensity(s.intensity)
-        setComment(s.comment)
-        if (PRESET_TRAINERS.includes(s.trainerName)) {
-          setTrainerSelect(s.trainerName)
-        } else if (s.trainerName) {
-          setTrainerSelect('その他')
-          setTrainerCustom(s.trainerName)
+      getSessionById(sessionId).then(s => {
+        if (s) {
+          setStatus(s.status)
+          setDate(s.date)
+          setTotalRounds(s.totalRounds)
+          setBreakdown(s.roundBreakdown.length > 0 ? s.roundBreakdown : DEFAULT_BREAKDOWN)
+          setIntensity(s.intensity)
+          setComment(s.comment)
+          if (PRESET_TRAINERS.includes(s.trainerName)) {
+            setTrainerSelect(s.trainerName)
+          } else if (s.trainerName) {
+            setTrainerSelect('その他')
+            setTrainerCustom(s.trainerName)
+          }
         }
-      }
+      })
     }
   }, [sessionId])
 
@@ -79,7 +80,7 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
     setBreakdown(prev => prev.filter((_, i) => i !== idx))
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const now = new Date().toISOString()
     const session: Session = {
       id: sessionId ?? generateId(),
@@ -94,13 +95,13 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
       createdAt: now,
       updatedAt: now,
     }
-    saveSession(session)
+    await saveSession(session)
     router.back()
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (sessionId) {
-      deleteSession(sessionId)
+      await deleteSession(sessionId)
       router.replace('/')
     }
   }
