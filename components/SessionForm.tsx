@@ -3,16 +3,13 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  getSessions,
   getSessionById,
   saveSession,
   deleteSession,
-  getTrainers,
-  saveTrainer,
   generateId,
   toDateString,
 } from '@/lib/storage'
-import { Session, RoundBreakdown, RoundType, Trainer } from '@/lib/types'
+import { Session, RoundBreakdown, RoundType } from '@/lib/types'
 import { ROUND_TYPES, ROUND_TYPE_LABELS, INTENSITY_LABELS } from '@/lib/constants'
 
 interface SessionFormProps {
@@ -20,10 +17,12 @@ interface SessionFormProps {
   initialDate?: string
 }
 
-const EMPTY_BREAKDOWN: RoundBreakdown[] = [
-  { type: 'kick', count: 0 },
-  { type: 'punch', count: 0 },
+const DEFAULT_BREAKDOWN: RoundBreakdown[] = [
+  { type: 'kick', count: 6 },
+  { type: 'punch', count: 4 },
 ]
+
+const PRESET_TRAINERS = ['たかやさん', 'りゅうせいさん', 'まさるさん', 'しおうさん', '藤原さん', 'まなかちゃん']
 
 export default function SessionForm({ sessionId, initialDate }: SessionFormProps) {
   const router = useRouter()
@@ -34,33 +33,34 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
   const [status, setStatus] = useState<'planned' | 'actual'>('actual')
   const [date, setDate] = useState(initialDate ?? today)
   const [totalRounds, setTotalRounds] = useState(10)
-  const [breakdown, setBreakdown] = useState<RoundBreakdown[]>(EMPTY_BREAKDOWN)
+  const [breakdown, setBreakdown] = useState<RoundBreakdown[]>(DEFAULT_BREAKDOWN)
   const [intensity, setIntensity] = useState<1 | 2 | 3 | 4 | 5>(3)
   const [comment, setComment] = useState('')
-  const [trainerName, setTrainerName] = useState('')
-  const [trainers, setTrainers] = useState<Trainer[]>([])
-  const [showTrainerSuggest, setShowTrainerSuggest] = useState(false)
+  const [trainerSelect, setTrainerSelect] = useState('')  // プルダウン選択値
+  const [trainerCustom, setTrainerCustom] = useState('')  // その他テキスト
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   useEffect(() => {
-    setTrainers(getTrainers())
     if (sessionId) {
       const s = getSessionById(sessionId)
       if (s) {
         setStatus(s.status)
         setDate(s.date)
         setTotalRounds(s.totalRounds)
-        setBreakdown(s.roundBreakdown.length > 0 ? s.roundBreakdown : EMPTY_BREAKDOWN)
+        setBreakdown(s.roundBreakdown.length > 0 ? s.roundBreakdown : DEFAULT_BREAKDOWN)
         setIntensity(s.intensity)
         setComment(s.comment)
-        setTrainerName(s.trainerName)
+        if (PRESET_TRAINERS.includes(s.trainerName)) {
+          setTrainerSelect(s.trainerName)
+        } else if (s.trainerName) {
+          setTrainerSelect('その他')
+          setTrainerCustom(s.trainerName)
+        }
       }
     }
   }, [sessionId])
 
-  const filteredTrainers = trainers.filter(t =>
-    trainerName.length > 0 && t.name.includes(trainerName) && t.name !== trainerName
-  )
+  const trainerName = trainerSelect === 'その他' ? trainerCustom : trainerSelect
 
   const handleBreakdownChange = (idx: number, field: 'type' | 'count', value: string | number) => {
     setBreakdown(prev => prev.map((b, i) =>
@@ -80,15 +80,6 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
   }
 
   const handleSave = () => {
-    // トレーナーを保存（新規の場合）
-    if (trainerName.trim()) {
-      const existing = trainers.find(t => t.name === trainerName.trim())
-      if (!existing) {
-        const newTrainer: Trainer = { id: generateId(), name: trainerName.trim() }
-        saveTrainer(newTrainer)
-      }
-    }
-
     const now = new Date().toISOString()
     const session: Session = {
       id: sessionId ?? generateId(),
@@ -310,6 +301,39 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
           </div>
         )}
 
+        {/* トレーナー */}
+        <div className="bg-white rounded-2xl px-5 py-4 shadow-sm">
+          <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#8E8E93' }}>
+            トレーナー
+          </label>
+          <select
+            value={trainerSelect}
+            onChange={e => {
+              setTrainerSelect(e.target.value)
+              if (e.target.value !== 'その他') setTrainerCustom('')
+            }}
+            className="w-full mt-2 text-base font-medium rounded-xl px-3 py-3 outline-none appearance-none"
+            style={{ backgroundColor: '#F8F4EF', color: trainerSelect ? '#1C1C1E' : '#8E8E93' }}
+          >
+            <option value="">トレーナーを選択</option>
+            {PRESET_TRAINERS.map(name => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+            <option value="その他">その他</option>
+          </select>
+          {trainerSelect === 'その他' && (
+            <input
+              type="text"
+              value={trainerCustom}
+              onChange={e => setTrainerCustom(e.target.value)}
+              placeholder="トレーナー名を入力"
+              className="w-full mt-3 text-base outline-none border-b pb-1"
+              style={{ color: '#1C1C1E', borderColor: '#EBEBF0' }}
+              autoFocus
+            />
+          )}
+        </div>
+
         {/* コメント（実績のみ） */}
         {status === 'actual' && (
           <div className="bg-white rounded-2xl px-5 py-4 shadow-sm">
@@ -326,47 +350,6 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
             />
           </div>
         )}
-
-        {/* トレーナー */}
-        <div className="bg-white rounded-2xl px-5 py-4 shadow-sm relative">
-          <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#8E8E93' }}>
-            トレーナー
-          </label>
-          <input
-            type="text"
-            value={trainerName}
-            onChange={e => {
-              setTrainerName(e.target.value)
-              setShowTrainerSuggest(true)
-            }}
-            onBlur={() => setTimeout(() => setShowTrainerSuggest(false), 150)}
-            onFocus={() => setShowTrainerSuggest(true)}
-            placeholder="トレーナー名を入力"
-            className="w-full mt-2 text-base outline-none border-b pb-1"
-            style={{ color: '#1C1C1E', borderColor: '#EBEBF0' }}
-          />
-          {/* サジェスト */}
-          {showTrainerSuggest && filteredTrainers.length > 0 && (
-            <div
-              className="absolute left-0 right-0 mx-5 rounded-xl shadow-lg z-10 overflow-hidden"
-              style={{ top: '100%', backgroundColor: 'white', marginTop: '4px' }}
-            >
-              {filteredTrainers.map(t => (
-                <button
-                  key={t.id}
-                  className="w-full px-4 py-3 text-left text-sm font-medium border-b last:border-b-0 active:bg-gray-50"
-                  style={{ color: '#1C1C1E', borderColor: '#EBEBF0' }}
-                  onMouseDown={() => {
-                    setTrainerName(t.name)
-                    setShowTrainerSuggest(false)
-                  }}
-                >
-                  {t.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
 
         {/* 削除ボタン（編集時） */}
         {isEdit && (
