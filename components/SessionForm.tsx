@@ -39,6 +39,8 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
   const [selectedTrainers, setSelectedTrainers] = useState<string[]>([])  // チェック済みトレーナー
   const [trainerCustom, setTrainerCustom] = useState('')  // その他テキスト
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (sessionId) {
@@ -94,22 +96,30 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
   }
 
   const handleSave = async () => {
-    const now = new Date().toISOString()
-    const session: Session = {
-      id: sessionId ?? generateId(),
-      date,
-      status,
-      totalRounds,
-      roundBreakdown: breakdown.filter(b => b.count > 0),
-      intensity,
-      comment: comment.trim(),
-      trainerId: '',
-      trainerName: trainerName.trim(),
-      createdAt: now,
-      updatedAt: now,
+    setSaving(true)
+    setError(null)
+    try {
+      const now = new Date().toISOString()
+      const session: Session = {
+        id: sessionId ?? generateId(),
+        date,
+        status,
+        totalRounds,
+        roundBreakdown: breakdown.filter(b => b.count > 0),
+        intensity,
+        comment: comment.trim(),
+        trainerId: '',
+        trainerName: trainerName.trim(),
+        createdAt: now,
+        updatedAt: now,
+      }
+      await saveSession(session)
+      router.back()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '保存に失敗しました')
+    } finally {
+      setSaving(false)
     }
-    await saveSession(session)
-    router.back()
   }
 
   const handleDelete = async () => {
@@ -458,15 +468,21 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
 
       {/* 保存ボタン */}
       <div
-        className="fixed bottom-0 left-0 right-0 px-5 pb-safe bg-transparent"
+        className="fixed bottom-0 left-0 right-0 px-5 bg-transparent"
         style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + 16px)` }}
       >
+        {error && (
+          <div className="mb-2 px-4 py-2 rounded-xl text-xs font-medium" style={{ backgroundColor: '#FFF0F0', color: '#FF3B30' }}>
+            ⚠️ {error}
+          </div>
+        )}
         <button
           onClick={handleSave}
-          className="w-full py-4 rounded-2xl text-base font-bold text-white shadow-lg active:opacity-90 transition-opacity"
-          style={{ backgroundColor: '#FF6B35' }}
+          disabled={saving}
+          className="w-full py-4 rounded-2xl text-base font-bold text-white shadow-lg transition-opacity"
+          style={{ backgroundColor: '#FF6B35', opacity: saving ? 0.7 : 1 }}
         >
-          {isEdit ? '更新する' : '記録する'}
+          {saving ? '保存中...' : isEdit ? '更新する' : '記録する'}
         </button>
       </div>
     </div>
