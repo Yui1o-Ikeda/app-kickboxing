@@ -1,9 +1,5 @@
-'use client'
+import { redirect } from 'next/navigation'
 
-import { useParams } from 'next/navigation'
-import SessionForm from '@/components/SessionForm'
-
-export default function EditSessionPage() {
-  const { id } = useParams<{ id: string }>()
-  return <SessionForm sessionId={id} />
+export default function OldEditSessionPage({ params }: { params: { id: string } }) {
+  redirect(`/u/default/sessions/${params.id}`)
 }

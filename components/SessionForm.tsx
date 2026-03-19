@@ -15,6 +15,7 @@ import { ROUND_TYPES, ROUND_TYPE_LABELS, INTENSITY_LABELS } from '@/lib/constant
 interface SessionFormProps {
   sessionId?: string
   initialDate?: string
+  userId: string
 }
 
 const DEFAULT_BREAKDOWN: RoundBreakdown[] = [
@@ -24,7 +25,7 @@ const DEFAULT_BREAKDOWN: RoundBreakdown[] = [
 
 const PRESET_TRAINERS = ['たかやさん', 'りゅうせいさん', 'まさるさん', 'しおうさん', '藤原さん', 'まなかちゃん']
 
-export default function SessionForm({ sessionId, initialDate }: SessionFormProps) {
+export default function SessionForm({ sessionId, initialDate, userId }: SessionFormProps) {
   const router = useRouter()
   const isEdit = !!sessionId
 
@@ -36,15 +37,15 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
   const [breakdown, setBreakdown] = useState<RoundBreakdown[]>(DEFAULT_BREAKDOWN)
   const [intensity, setIntensity] = useState<1 | 2 | 3 | 4 | 5>(3)
   const [comment, setComment] = useState('')
-  const [selectedTrainers, setSelectedTrainers] = useState<string[]>([])  // チェック済みトレーナー
-  const [trainerCustom, setTrainerCustom] = useState('')  // その他テキスト
+  const [selectedTrainers, setSelectedTrainers] = useState<string[]>([])
+  const [trainerCustom, setTrainerCustom] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (sessionId) {
-      getSessionById(sessionId).then(s => {
+      getSessionById(sessionId, userId).then(s => {
         if (s) {
           setStatus(s.status)
           setDate(s.date)
@@ -62,7 +63,7 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
         }
       })
     }
-  }, [sessionId])
+  }, [sessionId, userId])
 
   const hasCustom = selectedTrainers.includes('__other__')
   const trainerName = [
@@ -113,7 +114,7 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
         createdAt: now,
         updatedAt: now,
       }
-      await saveSession(session)
+      await saveSession(session, userId)
       router.back()
     } catch (e) {
       const msg = (e as { message?: string })?.message ?? JSON.stringify(e)
@@ -126,7 +127,7 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
   const handleDelete = async () => {
     if (sessionId) {
       await deleteSession(sessionId)
-      router.replace('/')
+      router.replace(`/u/${userId}`)
     }
   }
 
@@ -134,7 +135,6 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
 
   return (
     <div className="min-h-dvh flex flex-col" style={{ backgroundColor: '#F8F4EF' }}>
-      {/* ヘッダー */}
       <header
         className="flex items-center justify-between px-5 sticky top-0 z-40"
         style={{
@@ -161,7 +161,6 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
 
       <main className="flex-1 px-5 pb-32 flex flex-col gap-4 overflow-y-auto">
 
-        {/* 予実切り替え */}
         <div className="flex rounded-xl p-1" style={{ backgroundColor: '#EBEBF0' }}>
           <button
             onClick={() => setStatus('actual')}
@@ -187,7 +186,6 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
           </button>
         </div>
 
-        {/* 日付 */}
         <div className="bg-white rounded-2xl px-5 py-4 shadow-sm">
           <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#8E8E93' }}>
             日付
@@ -201,7 +199,6 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
           />
         </div>
 
-        {/* ラウンド数 */}
         <div className="bg-white rounded-2xl px-5 py-4 shadow-sm">
           <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#8E8E93' }}>
             総ラウンド数
@@ -215,9 +212,7 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
               −
             </button>
             <div className="flex-1 text-center">
-              <span className="text-4xl font-black" style={{ color: '#1C1C1E' }}>
-                {totalRounds}
-              </span>
+              <span className="text-4xl font-black" style={{ color: '#1C1C1E' }}>{totalRounds}</span>
               <span className="text-lg font-medium ml-1" style={{ color: '#8E8E93' }}>R</span>
             </div>
             <button
@@ -230,7 +225,6 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
           </div>
         </div>
 
-        {/* ラウンド内訳 */}
         <div className="bg-white rounded-2xl px-5 py-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#8E8E93' }}>
@@ -244,7 +238,6 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
               ＋追加
             </button>
           </div>
-
           <div className="flex flex-col gap-3">
             {breakdown.map((b, idx) => (
               <div key={idx} className="flex items-center gap-3">
@@ -255,7 +248,7 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
                   style={{ backgroundColor: '#F8F4EF', color: '#1C1C1E' }}
                 >
                   {ROUND_TYPES.map(t => (
-                    <option key={t} value={t}>{ROUND_TYPE_LABELS[t]}</option>
+                    <option key={t} value={t}>{ROUND_TYPE_LABELS[t as RoundType]}</option>
                   ))}
                 </select>
                 <div className="flex items-center gap-2">
@@ -263,35 +256,26 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
                     onClick={() => handleBreakdownChange(idx, 'count', Math.max(0, b.count - 1))}
                     className="w-8 h-8 rounded-full flex items-center justify-center font-bold"
                     style={{ backgroundColor: '#F8F4EF', color: '#1C1C1E' }}
-                  >
-                    −
-                  </button>
-                  <span className="w-8 text-center font-bold text-base" style={{ color: '#1C1C1E' }}>
-                    {b.count}
-                  </span>
+                  >−</button>
+                  <span className="w-8 text-center font-bold text-base" style={{ color: '#1C1C1E' }}>{b.count}</span>
                   <button
                     onClick={() => handleBreakdownChange(idx, 'count', b.count + 1)}
                     className="w-8 h-8 rounded-full flex items-center justify-center font-bold"
                     style={{ backgroundColor: '#FF6B35', color: 'white' }}
-                  >
-                    ＋
-                  </button>
+                  >＋</button>
                 </div>
                 {breakdown.length > 1 && (
                   <button
                     onClick={() => removeBreakdown(idx)}
                     className="w-8 h-8 flex items-center justify-center rounded-full active:opacity-70"
                     style={{ color: '#8E8E93' }}
-                  >
-                    ✕
-                  </button>
+                  >✕</button>
                 )}
               </div>
             ))}
           </div>
         </div>
 
-        {/* 追込み度（実績のみ） */}
         {status === 'actual' && (
           <div className="bg-white rounded-2xl px-5 py-4 shadow-sm">
             <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#8E8E93' }}>
@@ -303,38 +287,27 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
                   key={v}
                   onClick={() => setIntensity(v)}
                   className="flex-1 flex flex-col items-center gap-1 py-2 rounded-xl transition-all"
-                  style={{
-                    backgroundColor: intensity === v ? '#FF6B35' : '#F8F4EF',
-                  }}
+                  style={{ backgroundColor: intensity === v ? '#FF6B35' : '#F8F4EF' }}
                 >
                   <span className="text-xl">{INTENSITY_EMOJI[v]}</span>
-                  <span
-                    className="text-xs font-medium"
-                    style={{ color: intensity === v ? 'white' : '#8E8E93' }}
-                  >
+                  <span className="text-xs font-medium" style={{ color: intensity === v ? 'white' : '#8E8E93' }}>
                     {v}
                   </span>
                 </button>
               ))}
             </div>
-            <p
-              className="text-xs text-center mt-2 font-medium"
-              style={{ color: '#FF6B35' }}
-            >
+            <p className="text-xs text-center mt-2 font-medium" style={{ color: '#FF6B35' }}>
               {INTENSITY_LABELS[intensity]}
             </p>
           </div>
         )}
 
-        {/* トレーナー */}
         <div className="bg-white rounded-2xl px-5 py-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#8E8E93' }}>
               トレーナー
             </label>
-            <span className="text-xs" style={{ color: '#8E8E93' }}>
-              最大4名
-            </span>
+            <span className="text-xs" style={{ color: '#8E8E93' }}>最大4名</span>
           </div>
           <div className="grid grid-cols-2 gap-2">
             {PRESET_TRAINERS.map(name => {
@@ -363,13 +336,10 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
                       </svg>
                     )}
                   </span>
-                  <span className="text-sm font-medium" style={{ color: checked ? '#FF6B35' : '#1C1C1E' }}>
-                    {name}
-                  </span>
+                  <span className="text-sm font-medium" style={{ color: checked ? '#FF6B35' : '#1C1C1E' }}>{name}</span>
                 </button>
               )
             })}
-            {/* その他 */}
             <button
               type="button"
               onClick={() => toggleTrainer('__other__')}
@@ -389,9 +359,7 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
                   </svg>
                 )}
               </span>
-              <span className="text-sm font-medium" style={{ color: hasCustom ? '#FF6B35' : '#1C1C1E' }}>
-                その他
-              </span>
+              <span className="text-sm font-medium" style={{ color: hasCustom ? '#FF6B35' : '#1C1C1E' }}>その他</span>
             </button>
           </div>
           {hasCustom && (
@@ -412,7 +380,6 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
           )}
         </div>
 
-        {/* コメント（実績のみ） */}
         {status === 'actual' && (
           <div className="bg-white rounded-2xl px-5 py-4 shadow-sm">
             <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#8E8E93' }}>
@@ -429,7 +396,6 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
           </div>
         )}
 
-        {/* 削除ボタン（編集時） */}
         {isEdit && (
           <div>
             {!showDeleteConfirm ? (
@@ -442,24 +408,18 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
               </button>
             ) : (
               <div className="bg-white rounded-2xl p-4 flex flex-col gap-3">
-                <p className="text-sm text-center font-medium" style={{ color: '#1C1C1E' }}>
-                  本当に削除しますか？
-                </p>
+                <p className="text-sm text-center font-medium" style={{ color: '#1C1C1E' }}>本当に削除しますか？</p>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setShowDeleteConfirm(false)}
                     className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
                     style={{ backgroundColor: '#F8F4EF', color: '#1C1C1E' }}
-                  >
-                    キャンセル
-                  </button>
+                  >キャンセル</button>
                   <button
                     onClick={handleDelete}
                     className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white"
                     style={{ backgroundColor: '#FF3B30' }}
-                  >
-                    削除する
-                  </button>
+                  >削除する</button>
                 </div>
               </div>
             )}
@@ -467,7 +427,6 @@ export default function SessionForm({ sessionId, initialDate }: SessionFormProps
         )}
       </main>
 
-      {/* 保存ボタン */}
       <div
         className="fixed bottom-0 left-0 right-0 px-5 bg-transparent"
         style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + 16px)` }}
