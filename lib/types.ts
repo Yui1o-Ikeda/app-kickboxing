@@ -43,4 +43,10 @@ export interface MonthlyStats {
   costPerSession: number | null
   costPerRound: number | null
   avgIntensity: number | null
+  // 実績＋予定ベースの想定ROI
+  projectedSessions: number
+  projectedRounds: number
+  projectedTotalCost: number
+  projectedCostPerSession: number | null
+  projectedCostPerRound: number | null
 }

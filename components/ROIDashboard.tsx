@@ -108,6 +108,46 @@ export default function ROIDashboard({ stats, settings }: ROIDashboardProps) {
         </div>
       </div>
 
+      {/* 想定ROIカード（実績＋予定） */}
+      {stats.plannedSessions > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-base" style={{ color: '#1C1C1E' }}>
+              今月の想定ROI
+            </h2>
+            <span className="text-xs px-2 py-1 rounded-full font-medium"
+              style={{ backgroundColor: '#F0F4FF', color: '#5B7FFF' }}
+            >
+              実績＋予定{stats.projectedSessions}回
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl p-4 flex flex-col gap-1" style={{ backgroundColor: '#EEF2FF' }}>
+              <span className="text-xs font-medium" style={{ color: '#5B7FFF' }}>1回あたり単価</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-bold" style={{ color: '#3B5BDB' }}>
+                  {stats.projectedCostPerSession !== null ? `¥${stats.projectedCostPerSession.toLocaleString()}` : '—'}
+                </span>
+              </div>
+              <span className="text-xs" style={{ color: '#5B7FFF' }}>
+                予定{stats.plannedSessions}回含む
+              </span>
+            </div>
+            <div className="rounded-2xl p-4 flex flex-col gap-1" style={{ backgroundColor: '#F8F4EF' }}>
+              <span className="text-xs font-medium" style={{ color: '#8E8E93' }}>1ラウンド単価</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-bold" style={{ color: '#1C1C1E' }}>
+                  {stats.projectedCostPerRound !== null ? `¥${stats.projectedCostPerRound.toLocaleString()}` : '—'}
+                </span>
+              </div>
+              <span className="text-xs" style={{ color: '#8E8E93' }}>
+                {stats.projectedRounds}R見込み
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 目標進捗 */}
       <div className="bg-white rounded-2xl shadow-sm p-5">
         <h2 className="font-bold text-base mb-4" style={{ color: '#1C1C1E' }}>

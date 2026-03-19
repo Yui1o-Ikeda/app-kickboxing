@@ -19,6 +19,11 @@ export function computeMonthlyStats(
     ? intensities.reduce((a, b) => a + b, 0) / intensities.length
     : null
 
+  const plannedRounds = planned.reduce((sum, s) => sum + s.totalRounds, 0)
+  const projectedSessions = actual.length + planned.length
+  const projectedRounds = totalRounds + plannedRounds
+  const projectedTotalCost = settings.monthlyFee + projectedSessions * settings.transportCost
+
   return {
     year,
     month,
@@ -29,5 +34,10 @@ export function computeMonthlyStats(
     costPerSession: actual.length > 0 ? Math.round(totalCost / actual.length) : null,
     costPerRound: totalRounds > 0 ? Math.round(totalCost / totalRounds) : null,
     avgIntensity,
+    projectedSessions,
+    projectedRounds,
+    projectedTotalCost,
+    projectedCostPerSession: projectedSessions > 0 ? Math.round(projectedTotalCost / projectedSessions) : null,
+    projectedCostPerRound: projectedRounds > 0 ? Math.round(projectedTotalCost / projectedRounds) : null,
   }
 }
