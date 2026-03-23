@@ -33,7 +33,6 @@ export default function SessionForm({ sessionId, initialDate, userId }: SessionF
 
   const [status, setStatus] = useState<'planned' | 'actual'>('actual')
   const [date, setDate] = useState(initialDate ?? today)
-  const [totalRounds, setTotalRounds] = useState(10)
   const [breakdown, setBreakdown] = useState<RoundBreakdown[]>(DEFAULT_BREAKDOWN)
   const [intensity, setIntensity] = useState<1 | 2 | 3 | 4 | 5>(3)
   const [comment, setComment] = useState('')
@@ -49,7 +48,6 @@ export default function SessionForm({ sessionId, initialDate, userId }: SessionF
         if (s) {
           setStatus(s.status)
           setDate(s.date)
-          setTotalRounds(s.totalRounds)
           setBreakdown(s.roundBreakdown.length > 0 ? s.roundBreakdown : DEFAULT_BREAKDOWN)
           setIntensity(s.intensity)
           setComment(s.comment)
@@ -64,6 +62,8 @@ export default function SessionForm({ sessionId, initialDate, userId }: SessionF
       })
     }
   }, [sessionId, userId])
+
+  const totalRounds = breakdown.reduce((sum, b) => sum + b.count, 0)
 
   const hasCustom = selectedTrainers.includes('__other__')
   const trainerName = [
@@ -203,26 +203,11 @@ export default function SessionForm({ sessionId, initialDate, userId }: SessionF
           <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#8E8E93' }}>
             総ラウンド数
           </label>
-          <div className="flex items-center gap-4 mt-3">
-            <button
-              onClick={() => setTotalRounds(r => Math.max(1, r - 1))}
-              className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xl active:opacity-70"
-              style={{ backgroundColor: '#F8F4EF', color: '#1C1C1E' }}
-            >
-              −
-            </button>
-            <div className="flex-1 text-center">
-              <span className="text-4xl font-black" style={{ color: '#1C1C1E' }}>{totalRounds}</span>
-              <span className="text-lg font-medium ml-1" style={{ color: '#8E8E93' }}>R</span>
-            </div>
-            <button
-              onClick={() => setTotalRounds(r => r + 1)}
-              className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xl active:opacity-70"
-              style={{ backgroundColor: '#FF6B35', color: 'white' }}
-            >
-              ＋
-            </button>
+          <div className="flex items-center justify-center mt-3">
+            <span className="text-4xl font-black" style={{ color: '#1C1C1E' }}>{totalRounds}</span>
+            <span className="text-lg font-medium ml-1" style={{ color: '#8E8E93' }}>R</span>
           </div>
+          <p className="text-xs text-center mt-1" style={{ color: '#8E8E93' }}>ラウンド内訳の合計</p>
         </div>
 
         <div className="bg-white rounded-2xl px-5 py-4 shadow-sm">
@@ -394,6 +379,42 @@ export default function SessionForm({ sessionId, initialDate, userId }: SessionF
               rows={3}
             />
           </div>
+        )}
+
+        {isEdit && status === 'planned' && (
+          <button
+            onClick={async () => {
+              setSaving(true)
+              setError(null)
+              try {
+                const now = new Date().toISOString()
+                await saveSession({
+                  id: sessionId!,
+                  date,
+                  status: 'actual',
+                  totalRounds,
+                  roundBreakdown: breakdown.filter(b => b.count > 0),
+                  intensity,
+                  comment: comment.trim(),
+                  trainerId: '',
+                  trainerName: trainerName.trim(),
+                  createdAt: now,
+                  updatedAt: now,
+                }, userId)
+                router.back()
+              } catch (e) {
+                const msg = (e as { message?: string })?.message ?? JSON.stringify(e)
+                setError(msg)
+              } finally {
+                setSaving(false)
+              }
+            }}
+            disabled={saving}
+            className="w-full py-3 rounded-2xl text-sm font-semibold"
+            style={{ backgroundColor: '#DCFCE7', color: '#16A34A' }}
+          >
+            ✅ 実績として登録する
+          </button>
         )}
 
         {isEdit && (
